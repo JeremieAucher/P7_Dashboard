@@ -265,9 +265,15 @@ def get_df_global_shap_importance(model, X):
 
 @st.cache(suppress_st_warning=True)
 def loadDataAndModel():
-    return pickle.load(open(os.getcwd()+'\\pickle\\dataRef.pkl', 'rb')),\
-        pickle.load(open(os.getcwd()+'\\pickle\\dataCustomer.pkl', 'rb')),\
-            pickle.load(open(os.getcwd()+'\\pickle\\model.pkl', 'rb'))
+    return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
+        pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb')),\
+            pickle.load(open(os.getcwd()+'/pickle/model.pkl', 'rb'))
+
+# @st.cache(suppress_st_warning=True)
+# def loadDataAndModel():
+#     return pickle.load(open(os.getcwd()+'\\pickle\\dataRef.pkl', 'rb')),\
+#         pickle.load(open(os.getcwd()+'\\pickle\\dataCustomer.pkl', 'rb')),\
+#             pickle.load(open(os.getcwd()+'\\pickle\\model.pkl', 'rb'))
 ### Others Function - End ###
             
 ### Model Prediction - Start ###
