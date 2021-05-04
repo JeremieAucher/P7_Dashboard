@@ -32,7 +32,7 @@ def main():
         st.title('Simulation de prêt')
         st.header('Obtenez une réponse instantanément')
         ### Input ###
-        user_input = st.selectbox('Entrez le numéro de prêt:',dataCustomer[loanColumn])
+        user_input = st.selectbox('Entrez le numéro de prêt:',dataCustomer[loanColumn].tolist())
         idxCustomer = utils.getTheIDX(dataCustomer,user_input,loanColumn)
         'Vous avez selectionné le prêt n°: ', user_input,' correspondant au client n°',idxCustomer
         ### DF des Local Features Importance
@@ -136,7 +136,7 @@ def main():
     col1, col2 = st.beta_columns((2))
     
     with col1:
-        feature1 = st.selectbox('Choisissez la 1ère caractéristique:',df.index)
+        feature1 = st.selectbox('Choisissez la 1ère caractéristique:',df.index, index=0)
         valueCustomer1 = dataCustomer.loc[dataCustomer[loanColumn]==user_input, feature1].values[0]
         fig = utils.plotDistOneFeature(dataRef, feature1, valueCustomer1)
         st.write(fig)
@@ -151,7 +151,7 @@ def main():
         #     ]))
         
     with col2:
-        feature2 = st.selectbox('Choisissez la 2nd caractéristique:',df.index)
+        feature2 = st.selectbox('Choisissez la 2nd caractéristique:',df.index, index=1)
         valueCustomer2 = dataCustomer.loc[dataCustomer[loanColumn]==user_input, feature2].values[0]
         fig = utils.plotDistOneFeature(dataRef, feature2, valueCustomer2)
         st.write(fig)
@@ -166,11 +166,14 @@ def main():
         # }
         listValueCustomer = [[feature1,valueCustomer1],[feature2,valueCustomer2]]
         fig = utils.plotScatter2D(dataRef, listValueCustomer)
-        st.markdown('## Test')
+        # st.markdown('## ')
+        # st.markdown('## ')
+        st.markdown('### ↓ Positionnement du client en fonction des 2 premières caractéristiques selectionnées')
+        st.markdown('### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Positionnement du client en fonction des 3 caractéristiques selectionnées 🡮')
         st.write(fig)
     ### Scatter Plot 3D
     with col2:
-        feature3 = st.selectbox('Choisissez la 3ème caractéristique:',df.index)
+        feature3 = st.selectbox('Choisissez la 3ème caractéristique:',df.index, index=2)
         listValueCustomer.append([feature3,dataCustomer.loc[dataCustomer[loanColumn]==user_input, feature3].values[0]])
         fig = utils.plotScatter3D(dataRef, listValueCustomer)
         st.write(fig)

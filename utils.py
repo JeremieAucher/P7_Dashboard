@@ -17,6 +17,7 @@ import plotly.express as px
 
 # Initialisation ###
 loanColumn = 'SK_ID_CURR'
+target = 'TARGET'
 colW=350
 colH=500
 
@@ -112,8 +113,8 @@ def plotGlobalFeaturesImportance(model, X, nbFeatures=10):
     '''
     nbFeatures ---> (n_first_element)
     '''
-    # Suppression de la colonne 'TARGET' si elle existe.
-    X = X.drop('TARGET', axis=1, errors='ignore')
+    # Suppression de la colonne <target> si elle existe.
+    X = X.drop(target, axis=1, errors='ignore')
     
     data = get_df_global_shap_importance(model, X)
     
@@ -137,7 +138,8 @@ def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
         model=model,
         X=X,
         loanNumber=loanNumber,
-        nbFeatures=nbFeatures
+        nbFeatures=nbFeatures,
+        inv=True
         )
     i = dfValuesSign.index
     fig = px.bar(dfValuesSign,
@@ -161,15 +163,15 @@ def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
 def plotDistOneFeature(dataRef,feature,valCust):
     '''
     Retourne une figure distplot basé sur la variable <feature> des données <data>.
-    Affiche deux distribution en fonction de la valeur de la target 'TARGET'.
+    Affiche deux distribution en fonction de la valeur de la target.
     Affiche également une barre verticale représentant la valeur du client pour cette variable.
     '''
     
     # Pour le moment j'effectue ici le sample.
-    dataRef = dataRef.sample(frac=0.01)
+    # dataRef = dataRef.sample(frac=0.01)
     
-    x0 = dataRef[dataRef['TARGET']==0][feature]
-    x1 = dataRef[dataRef['TARGET']==1][feature]
+    x0 = dataRef[dataRef[target]==0][feature]
+    x1 = dataRef[dataRef[target]==1][feature]
     del dataRef
     hist_data = [x0, x1]
     group_labels = ['Refusé', 'Accepté']
@@ -177,35 +179,61 @@ def plotDistOneFeature(dataRef,feature,valCust):
     fig.add_vline(x=valCust, line_width=3, line_dash="dash", line_color="red")
     return fig
 
+# @st.cache(suppress_st_warning=True)
+# def plotScatter2D(dataRef, listValCust):
+    
+#     # Pour le moment j'effectue ici le sample.
+#     # dataRef = dataRef.sample(frac=0.001)
+    
+#     fig = px.scatter(
+#         dataRef,
+#         x=listValCust[0][0],
+#         y=listValCust[1][0],
+#         color=target
+#         )
+#     # fig.add_trace(px.scatter(x=listValCust[0][1], y=listValCust[1][1]))
+#     fig.add_vline(x=listValCust[0][1], line_width=1, line_dash="solid", line_color="red")
+#     fig.add_hline(y=listValCust[1][1], line_width=1, line_dash="solid", line_color="red")
+    
+#     fig.update_layout(showlegend=False)
+    
+#     return fig
+
 @st.cache(suppress_st_warning=True)
 def plotScatter2D(dataRef, listValCust):
     
     # Pour le moment j'effectue ici le sample.
-    dataRef = dataRef.sample(frac=0.001)
+    # dataRef = dataRef.sample(frac=0.001)
     
     fig = px.scatter(
         dataRef,
         x=listValCust[0][0],
         y=listValCust[1][0],
-        color='TARGET'
+        color=target
         )
     # fig.add_trace(px.scatter(x=listValCust[0][1], y=listValCust[1][1]))
     fig.add_vline(x=listValCust[0][1], line_width=1, line_dash="solid", line_color="red")
     fig.add_hline(y=listValCust[1][1], line_width=1, line_dash="solid", line_color="red")
+    
+    fig.update_layout(showlegend=True)
+    
     return fig
 
 @st.cache(suppress_st_warning=True)
 def plotScatter3D(dataRef, listValCust):
     # Pour le moment j'effectue ici le sample.
-    dataRef = dataRef.sample(frac=0.001)
+    # dataRef = dataRef.sample(frac=0.001)
     
     fig = px.scatter_3d(
         dataRef,
         x=listValCust[0][0],
         y=listValCust[1][0],
         z=listValCust[2][0],
-        color='TARGET'
+        color=target
         )
+    fig.update_layout(showlegend=False)
+    
+    
     fig.add_scatter3d(
         x=[listValCust[0][1]],
         y=[listValCust[1][1]],
@@ -216,12 +244,22 @@ def plotScatter3D(dataRef, listValCust):
 
 ### Others Function - Start ###
 @st.cache(suppress_st_warning=True)
-def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
+def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12,inv=False):
     # X = X.sample(frac=0.01)
     idx = getTheIDX(data=X,columnName=loanColumn,value=loanNumber)
     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
+    
+    if inv:
+        shap_values *= -1
+    
+    # if not inv:
+    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
+    # else:
+    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
+    
     dfShap = pd.DataFrame(shap_values, columns=X.columns.values)
     serieSignPositive = dfShap.iloc[0,:].apply(lambda col: True if col>=0 else False)
+
     serieValues = dfShap.iloc[0,:]
     serieAbsValues = abs(serieValues)
     return pd.DataFrame(
@@ -263,17 +301,17 @@ def get_df_global_shap_importance(model, X):
         columns=['feature','importance']
     )
 
-@st.cache(suppress_st_warning=True)
-def loadDataAndModel():
-    return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
-        pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb')),\
-            pickle.load(open(os.getcwd()+'/pickle/model.pkl', 'rb'))
-
 # @st.cache(suppress_st_warning=True)
 # def loadDataAndModel():
-#     return pickle.load(open(os.getcwd()+'\\pickle\\dataRef.pkl', 'rb')),\
-#         pickle.load(open(os.getcwd()+'\\pickle\\dataCustomer.pkl', 'rb')),\
-#             pickle.load(open(os.getcwd()+'\\pickle\\model.pkl', 'rb'))
+#     return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
+#         pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb')),\
+#             pickle.load(open(os.getcwd()+'/pickle/model.pkl', 'rb'))
+
+@st.cache(suppress_st_warning=True)
+def loadDataAndModel():
+    return pickle.load(open(os.getcwd()+'\\pickle\\dataRef.pkl', 'rb')),\
+        pickle.load(open(os.getcwd()+'\\pickle\\dataCustomer.pkl', 'rb')),\
+            pickle.load(open(os.getcwd()+'\\pickle\\model.pkl', 'rb'))
 ### Others Function - End ###
             
 ### Model Prediction - Start ###
@@ -281,9 +319,12 @@ def modelPredict(data, model, loanNumber, threshold):
     '''
         Retourne la prédiction du modèle: 0 ou 1 en fonction du seuil
         ainsi que la valeur exact de probabilité donné par le modèle.
+        Le score est modifié pour donner un score proche de 1 si acceptation du prêt.
+        Cette correction est destiné à être plus compréhensible pour les clients.
     '''
     idx = getTheIDX(data=data,columnName=loanColumn,value=loanNumber)
     resultModel = model.predict_proba(data[data.index == idx])[:,1]
+    resultModel = 1-resultModel
     return np.where(resultModel<threshold,0,1)[0],resultModel
 ### Model Prediction - End ###
 
