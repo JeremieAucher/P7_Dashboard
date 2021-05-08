@@ -26,7 +26,109 @@ colH=500
 url = "https://ja-p7-api.herokuapp.com/"
 # url = "http://127.0.0.1:5000/"
 
-### Chart - Start ###
+### For API Asking ###
+def convToB64(data):
+    return base64.b64encode(pickle.dumps(data)).decode('utf-8')
+
+def restoreFromB64Str(data_b64_str):
+    return pickle.loads(base64.b64decode(data_b64_str.encode()))
+
+def askAPI(apiName, url=url, params=None):
+    url=url+str(apiName)
+    resp = requests.post(url=url,params=params).text
+    return restoreFromB64Str(resp)
+
+def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url):
+    # Reccupération de l'index
+    idx = getTheIDX(data,loanNumber,columnName)
+    
+    # Création du df d'une seule ligne contenant les infos du client
+    data = data.iloc[[idx]]
+    
+    # Création des données à passer en arguments au format dictionnaire
+    params = dict(data_b64_str=convToB64(data))
+    
+    # Interrogation de l'API et récupération des données au format dictionnaire
+    dictResp = askAPI(url=url, params=params)
+    
+    return dictResp['predExact'], dictResp['predProba']
+
+### Load Data and More ###
+@st.cache(suppress_st_warning=True)
+def loadData():
+    return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
+        pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb'))
+
+
+
+@st.cache(suppress_st_warning=True)
+def loadModel(modelName='lightgbm'):
+    return askAPI(apiName=modelName)
+
+@st.cache(suppress_st_warning=True)
+def loadThreshold():
+    return askAPI(apiName='threshold')
+
+### Get Data ###
+@st.cache(suppress_st_warning=True)
+def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12,inv=False):
+    # X = X.sample(frac=0.01)
+    idx = getTheIDX(data=X,columnName=loanColumn,value=loanNumber)
+    shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
+    
+    if inv:
+        shap_values *= -1
+    
+    # if not inv:
+    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
+    # else:
+    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
+    
+    dfShap = pd.DataFrame(shap_values, columns=X.columns.values)
+    serieSignPositive = dfShap.iloc[0,:].apply(lambda col: True if col>=0 else False)
+
+    serieValues = dfShap.iloc[0,:]
+    serieAbsValues = abs(serieValues)
+    return pd.DataFrame(
+        {
+            'values':serieValues,
+            'absValues':serieAbsValues,
+            'positive':serieSignPositive,
+            'color':map(lambda x: 'red' if x else 'blue', serieSignPositive)
+            }
+        ).sort_values(
+            by='absValues',
+            ascending=False
+            ).iloc[:nbFeatures,:].drop('absValues', axis=1)
+
+def getTheIDX(data,value,columnName='SK_ID_CURR'):
+    '''
+    Retourne l'index correspondant à la 1ère valeur contenue dans value
+    contenue dans la colonne columnName du Dataframe data.
+    ''' 
+    return data[data[columnName] == value].index[0]
+
+def getGender(data, idx):
+    gender = data[data.index == idx].iloc[0]['CODE_GENDER']
+    if gender == 0:
+        return 'Female'
+    else:
+        return 'Male'
+
+@st.cache(suppress_st_warning=True)
+def get_df_global_shap_importance(model, X):
+    # Explain model predictions using shap library:
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X)[0]
+    return pd.DataFrame(
+        zip(
+            X.columns[np.argsort(np.abs(shap_values).mean(0))][::-1],
+            np.sort(np.abs(shap_values).mean(0))[::-1]
+        ),
+        columns=['feature','importance']
+    )
+
+### Plot Chart ###
 def gauge_chart(score, threshold):
     color="RebeccaPurple"
     if score<threshold:
@@ -200,179 +302,3 @@ def plotScatter3D(dataRef, listValCust):
         z=[listValCust[2][1]]
         )
     return fig
-### Chart - End ###
-
-### Others Function - Start ###
-@st.cache(suppress_st_warning=True)
-def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12,inv=False):
-    # X = X.sample(frac=0.01)
-    idx = getTheIDX(data=X,columnName=loanColumn,value=loanNumber)
-    shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
-    
-    if inv:
-        shap_values *= -1
-    
-    # if not inv:
-    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
-    # else:
-    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
-    
-    dfShap = pd.DataFrame(shap_values, columns=X.columns.values)
-    serieSignPositive = dfShap.iloc[0,:].apply(lambda col: True if col>=0 else False)
-
-    serieValues = dfShap.iloc[0,:]
-    serieAbsValues = abs(serieValues)
-    return pd.DataFrame(
-        {
-            'values':serieValues,
-            'absValues':serieAbsValues,
-            'positive':serieSignPositive,
-            'color':map(lambda x: 'red' if x else 'blue', serieSignPositive)
-            }
-        ).sort_values(
-            by='absValues',
-            ascending=False
-            ).iloc[:nbFeatures,:].drop('absValues', axis=1)
-
-def getTheIDX(data,value,columnName='SK_ID_CURR'):
-    '''
-    Retourne l'index correspondant à la 1ère valeur contenue dans value
-    contenue dans la colonne columnName du Dataframe data.
-    ''' 
-    return data[data[columnName] == value].index[0]
-
-def getGender(data, idx):
-    gender = data[data.index == idx].iloc[0]['CODE_GENDER']
-    if gender == 0:
-        return 'Female'
-    else:
-        return 'Male'
-
-@st.cache(suppress_st_warning=True)
-def get_df_global_shap_importance(model, X):
-    # Explain model predictions using shap library:
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X)[0]
-    return pd.DataFrame(
-        zip(
-            X.columns[np.argsort(np.abs(shap_values).mean(0))][::-1],
-            np.sort(np.abs(shap_values).mean(0))[::-1]
-        ),
-        columns=['feature','importance']
-    )
-
-@st.cache(suppress_st_warning=True)
-def loadData():
-    return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
-        pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb'))
-
-@st.cache(suppress_st_warning=True)
-def loadModel(modelName='lightgbm'):
-    return askAPI(apiName=modelName)
-
-@st.cache(suppress_st_warning=True)
-def loadThreshold():
-    return utils.askAPI(apiName='threshold')
-
-def convToB64(data):
-    return base64.b64encode(pickle.dumps(data)).decode('utf-8')
-
-def restoreFromB64Str(data_b64_str):
-    return pickle.loads(base64.b64decode(data_b64_str.encode()))
-
-def askAPI(apiName, url=url, params=None):
-    url=url+str(apiName)
-    resp = requests.post(url=url,params=params).text
-    return restoreFromB64Str(resp)
-    
-    # if formatReturn == 'str'
-    #     return resp
-    # elif formatReturn == 'json'
-    #     return json.load(resp)
-    # else:
-    #     return 0
-    # decode with json?
-    
-### Others Function - End ###
-            
-### Model Prediction - Start ###
-# def modelPredict(data, model, loanNumber):
-#     '''
-#         Retourne la prédiction du modèle: 0 ou 1 en fonction du seuil
-#         ainsi que la valeur exact de probabilité donné par le modèle.
-#         Le score est modifié pour donner un score proche de 1 si acceptation du prêt.
-#         Cette correction est destiné à être plus compréhensible pour les clients.
-#     '''
-#     idx = getTheIDX(data=data,columnName=loanColumn,value=loanNumber)
-#     resultModel = model.predict_proba(data[data.index == idx])[:,1]
-#     resultModel = 1-resultModel
-#     return np.where(resultModel<threshold,0,1)[0],resultModel
-
-def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url):
-    # Reccupération de l'index
-    idx = getTheIDX(data,loanNumber,columnName)
-    
-    # Création du df d'une seule ligne contenant les infos du client
-    data = data.iloc[[idx]]
-    
-    # Création des données à passer en arguments au format dictionnaire
-    params = dict(data_b64_str=convToB64(data))
-    
-    # Interrogation de l'API et récupération des données au format dictionnaire
-    dictResp = askAPI(url=url, params=params)
-    # resp = requests.post(
-    #     url=url,
-    #     params=params
-    #     )
-    # dictResp = json.loads(resp.text)   
-    
-    return dictResp['predExact'], dictResp['predProba']
-    
-### Model Prediction - End ###
-
-
-
-
-
-# def showCustomerResult(model, data, threshold, idxCustomer=0):
-    
-#     # Trouver la plus proche valeur en Y à partir d'une valeur en X.
-    
-#     from collections import Counter
-    
-#     resultPredictProba = model.predict_proba(data)[:,1]
-#     scoreCustomer = resultPredictProba[idxCustomer]
-#     resultPredictProba.sort()
-#     newIdxCustomer = np.where(resultPredictProba==scoreCustomer)[0][0]
-    
-#     newPredictProba = [round(i,2) for i in resultPredictProba]
-#     newIdxC = np.where(newPredictProba==round(scoreCustomer,2))[0][0]
-    
-#     print(newIdxC)
-    
-#     dictTest = dict(Counter(newPredictProba))
-#     xValues = list(dictTest.keys())
-#     yValues = list(dictTest.values())
-    
-#     NEWIDX = np.where(xValues==round(newPredictProba[newIdxCustomer],2))[0][0]
-#     print(xValues[NEWIDX])
-#     print(yValues[NEWIDX])
-    
-#     idxMax = next(x[0] for x in enumerate(xValues) if x[1] > 0.51)
-
-#     plt.figure(figsize=(20,10))
-#     sns.lineplot(x=xValues[:idxMax], y=yValues[:idxMax], color='blue')
-#     sns.lineplot(x=xValues[idxMax:], y=yValues[idxMax:], color='red')
-#     plt.scatter(x=xValues[NEWIDX], y=yValues[NEWIDX], color='black')
-    
-#     plt.show()
-#     st.pyplot()
-
-
-            
-def backgroundColor(codeHTML,color='000000',balise='span'):
-    '''
-    return a HTML code surounded by a span or div tag.
-    The tag include a color for the background.
-    '''
-    return "<"+balise+" style='background-color:#"+color+";'>"+codeHTML+"</"+balise+">"
