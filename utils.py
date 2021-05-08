@@ -38,7 +38,7 @@ def askAPI(apiName, url=url, params=None):
     resp = requests.post(url=url,params=params).text
     return restoreFromB64Str(resp)
 
-def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url):
+def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url, modelName='lightgbm'):
     # Reccupération de l'index
     idx = getTheIDX(data,loanNumber,columnName)
     
@@ -49,7 +49,7 @@ def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url):
     params = dict(data_b64_str=convToB64(data))
     
     # Interrogation de l'API et récupération des données au format dictionnaire
-    dictResp = askAPI(url=url, params=params)
+    dictResp = askAPI(apiName=modelName ,url=url, params=params)
     
     return dictResp['predExact'], dictResp['predProba']
 
@@ -62,7 +62,7 @@ def loadData():
 
 
 @st.cache(suppress_st_warning=True)
-def loadModel(modelName='lightgbm'):
+def loadModel(modelName='model'):
     return askAPI(apiName=modelName)
 
 @st.cache(suppress_st_warning=True)
