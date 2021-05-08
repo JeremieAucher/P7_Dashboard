@@ -7,9 +7,6 @@ Created on Sun Apr 11 17:39:47 2021
 
 import streamlit as st
 import utils
-# import plotly.graph_objects as go
-# import plotly.figure_factory as ff
-
 
 def main():
     
