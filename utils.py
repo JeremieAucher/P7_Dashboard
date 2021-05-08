@@ -23,8 +23,8 @@ loanColumn = 'SK_ID_CURR'
 target = 'TARGET'
 colW=350
 colH=500
-# url = "https://ja-p7-api.herokuapp.com/"
-url = "http://127.0.0.1:5000/"
+url = "https://ja-p7-api.herokuapp.com/"
+# url = "http://127.0.0.1:5000/"
 
 ### Chart - Start ###
 def gauge_chart(score, threshold):
