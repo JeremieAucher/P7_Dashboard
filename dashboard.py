@@ -19,9 +19,10 @@ def main():
         layout='wide',
         initial_sidebar_state="collapsed"
         )
-    threshold=0.51
     loanColumn = 'SK_ID_CURR'
-    dataRef, dataCustomer, model = utils.loadDataAndModel()
+    dataRef, dataCustomer = utils.loadData()
+    model = utils.loadModel()
+    threshold = utils.load_threshold()
     
     ########### Top ##############################
     col1, col2 = st.beta_columns((1,3))
@@ -60,16 +61,16 @@ def main():
         user_input = nearest_value
         
     ########### Model Prediction ##############################
-    predExact, predProba = utils.modelPredict(data=dataCustomer,
-                                              model=model,
-                                              loanNumber=int(user_input),
-                                              threshold=threshold)
+    # predExact, predProba = utils.modelPredict(data=dataCustomer,
+    #                                           model=model,
+    #                                           loanNumber=int(user_input),
+    #                                           threshold=threshold)
 
     ########### Model Prediction API ##########################    
-    predExact, predProba = utils.modelPredict(data=dataCustomer,
-                                              model=model,
-                                              loanNumber=int(user_input),
-                                              threshold=threshold)
+    predExact, predProba = utils.apiModelPrediction(data=dataCustomer,
+                                                    loanNumber=int(user_input),
+                                                    threshold=threshold)
+    # Envoyer un df d'une ligne qui doit ressebler à ça: dataCustomer.iloc[[2]]
     
     ########### Loan Validation ##############################
     st.markdown("# Validation du prêt")
@@ -94,7 +95,8 @@ def main():
                                                   loanNumber=int(user_input),
                                                   threshold=threshold)
         
-        fig=utils.gauge_chart(predProba[0],threshold)
+        # fig=utils.gauge_chart(predProba[0],threshold)
+        fig=utils.gauge_chart(predProba,threshold)
         st.write(fig)
     with col15:
         # Colonne vide pour centrer les elements

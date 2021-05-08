@@ -10,25 +10,27 @@ import os
 import streamlit as st
 import numpy as np
 import pandas as pd
+import requests
+import base64
+import shap
 import plotly.figure_factory as ff
 import plotly.graph_objects as go
-import shap
 import plotly.express as px
+
 
 # Initialisation ###
 loanColumn = 'SK_ID_CURR'
 target = 'TARGET'
 colW=350
 colH=500
+# url = "https://ja-p7-api.herokuapp.com/"
+url = "http://127.0.0.1:5000/"
 
 ### Chart - Start ###
 def gauge_chart(score, threshold):
-    # score *= 100
     color="RebeccaPurple"
     if score<threshold:
         color="darkred"
-    # elif score>= threshold*1.1:
-        # color="orange"
     else:
         color="green"
     fig = go.Figure(
@@ -102,10 +104,6 @@ def gauge_chart(score, threshold):
              },
             delta = {'reference': 0.5, 'increasing': {'color': "RebeccaPurple"}}
             ))
-    # fig.update_layout(
-    #     width=750,
-    #     height=500
-    #     )
     return fig
 
 @st.cache(suppress_st_warning=True)
@@ -124,12 +122,6 @@ def plotGlobalFeaturesImportance(model, X, nbFeatures=10):
     fig.add_trace(go.Bar(x=x, y=y,
                          marker=dict(color=y,
                                      colorscale='viridis')))
-    # fig.update_layout(
-    #     margin=dict(l=20, r=20, t=20, b=20),
-    #     width=colW,
-    #     height=colH,
-    #     paper_bgcolor="LightSteelBlue"
-    #     )
     return fig
 
 @st.cache(suppress_st_warning=True)
@@ -151,11 +143,7 @@ def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
     fig.update_layout(
         yaxis={'title': None},
         xaxis={'title': None},
-        showlegend=False,
-        # margin=dict(l=20, r=20, t=20, b=20),
-        # width=colW,
-        # height=colH,
-        # paper_bgcolor="LightSteelBlue"
+        showlegend=False
         )
     return fig
 
@@ -167,9 +155,6 @@ def plotDistOneFeature(dataRef,feature,valCust):
     Affiche également une barre verticale représentant la valeur du client pour cette variable.
     '''
     
-    # Pour le moment j'effectue ici le sample.
-    # dataRef = dataRef.sample(frac=0.01)
-    
     x0 = dataRef[dataRef[target]==0][feature]
     x1 = dataRef[dataRef[target]==1][feature]
     del dataRef
@@ -179,39 +164,14 @@ def plotDistOneFeature(dataRef,feature,valCust):
     fig.add_vline(x=valCust, line_width=3, line_dash="dash", line_color="red")
     return fig
 
-# @st.cache(suppress_st_warning=True)
-# def plotScatter2D(dataRef, listValCust):
-    
-#     # Pour le moment j'effectue ici le sample.
-#     # dataRef = dataRef.sample(frac=0.001)
-    
-#     fig = px.scatter(
-#         dataRef,
-#         x=listValCust[0][0],
-#         y=listValCust[1][0],
-#         color=target
-#         )
-#     # fig.add_trace(px.scatter(x=listValCust[0][1], y=listValCust[1][1]))
-#     fig.add_vline(x=listValCust[0][1], line_width=1, line_dash="solid", line_color="red")
-#     fig.add_hline(y=listValCust[1][1], line_width=1, line_dash="solid", line_color="red")
-    
-#     fig.update_layout(showlegend=False)
-    
-#     return fig
-
 @st.cache(suppress_st_warning=True)
 def plotScatter2D(dataRef, listValCust):
-    
-    # Pour le moment j'effectue ici le sample.
-    # dataRef = dataRef.sample(frac=0.001)
-    
     fig = px.scatter(
         dataRef,
         x=listValCust[0][0],
         y=listValCust[1][0],
         color=target
         )
-    # fig.add_trace(px.scatter(x=listValCust[0][1], y=listValCust[1][1]))
     fig.add_vline(x=listValCust[0][1], line_width=1, line_dash="solid", line_color="red")
     fig.add_hline(y=listValCust[1][1], line_width=1, line_dash="solid", line_color="red")
     
@@ -302,30 +262,72 @@ def get_df_global_shap_importance(model, X):
     )
 
 @st.cache(suppress_st_warning=True)
-def loadDataAndModel():
+def loadData():
     return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
-        pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb')),\
-            pickle.load(open(os.getcwd()+'/pickle/model.pkl', 'rb'))
+        pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb'))
 
-# @st.cache(suppress_st_warning=True)
-# def loadDataAndModel():
-#     return pickle.load(open(os.getcwd()+'\\pickle\\dataRef.pkl', 'rb')),\
-#         pickle.load(open(os.getcwd()+'\\pickle\\dataCustomer.pkl', 'rb')),\
-#             pickle.load(open(os.getcwd()+'\\pickle\\model.pkl', 'rb'))
+@st.cache(suppress_st_warning=True)
+def loadModel(modelName='lightgbm'):
+    return askAPI(apiName=modelName)
+
+@st.cache(suppress_st_warning=True)
+def loadThreshold():
+    return utils.askAPI(apiName='threshold')
+
+def convToB64(data):
+    return base64.b64encode(pickle.dumps(data)).decode('utf-8')
+
+def restoreFromB64Str(data_b64_str):
+    return pickle.loads(base64.b64decode(data_b64_str.encode()))
+
+def askAPI(apiName, url=url, params=None):
+    url=url+str(apiName)
+    resp = requests.post(url=url,params=params).text
+    return restoreFromB64Str(resp)
+    
+    # if formatReturn == 'str'
+    #     return resp
+    # elif formatReturn == 'json'
+    #     return json.load(resp)
+    # else:
+    #     return 0
+    # decode with json?
+    
 ### Others Function - End ###
             
 ### Model Prediction - Start ###
-def modelPredict(data, model, loanNumber, threshold):
-    '''
-        Retourne la prédiction du modèle: 0 ou 1 en fonction du seuil
-        ainsi que la valeur exact de probabilité donné par le modèle.
-        Le score est modifié pour donner un score proche de 1 si acceptation du prêt.
-        Cette correction est destiné à être plus compréhensible pour les clients.
-    '''
-    idx = getTheIDX(data=data,columnName=loanColumn,value=loanNumber)
-    resultModel = model.predict_proba(data[data.index == idx])[:,1]
-    resultModel = 1-resultModel
-    return np.where(resultModel<threshold,0,1)[0],resultModel
+# def modelPredict(data, model, loanNumber):
+#     '''
+#         Retourne la prédiction du modèle: 0 ou 1 en fonction du seuil
+#         ainsi que la valeur exact de probabilité donné par le modèle.
+#         Le score est modifié pour donner un score proche de 1 si acceptation du prêt.
+#         Cette correction est destiné à être plus compréhensible pour les clients.
+#     '''
+#     idx = getTheIDX(data=data,columnName=loanColumn,value=loanNumber)
+#     resultModel = model.predict_proba(data[data.index == idx])[:,1]
+#     resultModel = 1-resultModel
+#     return np.where(resultModel<threshold,0,1)[0],resultModel
+
+def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url):
+    # Reccupération de l'index
+    idx = getTheIDX(data,loanNumber,columnName)
+    
+    # Création du df d'une seule ligne contenant les infos du client
+    data = data.iloc[[idx]]
+    
+    # Création des données à passer en arguments au format dictionnaire
+    params = dict(data_b64_str=convToB64(data))
+    
+    # Interrogation de l'API et récupération des données au format dictionnaire
+    dictResp = askAPI(url=url, params=params)
+    # resp = requests.post(
+    #     url=url,
+    #     params=params
+    #     )
+    # dictResp = json.loads(resp.text)   
+    
+    return dictResp['predExact'], dictResp['predProba']
+    
 ### Model Prediction - End ###
 
 
