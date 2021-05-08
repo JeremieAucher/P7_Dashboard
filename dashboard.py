@@ -22,7 +22,7 @@ def main():
     loanColumn = 'SK_ID_CURR'
     dataRef, dataCustomer = utils.loadData()
     model = utils.loadModel()
-    threshold = utils.load_threshold()
+    threshold = utils.loadThreshold()
     
     ########### Top ##############################
     col1, col2 = st.beta_columns((1,3))
@@ -68,8 +68,7 @@ def main():
 
     ########### Model Prediction API ##########################    
     predExact, predProba = utils.apiModelPrediction(data=dataCustomer,
-                                                    loanNumber=int(user_input),
-                                                    threshold=threshold)
+                                                    loanNumber=int(user_input))
     # Envoyer un df d'une ligne qui doit ressebler à ça: dataCustomer.iloc[[2]]
     
     ########### Loan Validation ##############################
@@ -90,10 +89,10 @@ def main():
         # st.markdown("## Score")
         
 
-        predExact, predProba = utils.modelPredict(data=dataCustomer,
-                                                  model=model,
-                                                  loanNumber=int(user_input),
-                                                  threshold=threshold)
+        # predExact, predProba = utils.modelPredict(data=dataCustomer,
+        #                                           model=model,
+        #                                           loanNumber=int(user_input),
+        #                                           threshold=threshold)
         
         # fig=utils.gauge_chart(predProba[0],threshold)
         fig=utils.gauge_chart(predProba,threshold)
@@ -123,16 +122,6 @@ def main():
             )
         st.write(fig)
     
-    # fig=utils.plotGlobalFeaturesImportance(model, dataRef, 10)
-    # st.write(fig)
-    
-    # fig=utils.plotLocalFeaturesImportance(
-    #     model=model,
-    #     X=dataCustomer,
-    #     loanNumber=int(user_input)
-    #     )
-    # st.write(fig)
-    
     #### Analyse Mono & Bi variées
     ### Dist Plot
     col1, col2 = st.beta_columns((2))
@@ -142,15 +131,6 @@ def main():
         valueCustomer1 = dataCustomer.loc[dataCustomer[loanColumn]==user_input, feature1].values[0]
         fig = utils.plotDistOneFeature(dataRef, feature1, valueCustomer1)
         st.write(fig)
-        # st.write(ff.create_distplot(
-        #     [
-        #         dataRef[dataRef['TARGET']==0][feature1][:615],
-        #         dataRef[dataRef['TARGET']==1][feature1][:615]
-        #     ],
-        #     [
-        #         'Refusé',
-        #         'Accepté'
-        #     ]))
         
     with col2:
         feature2 = st.selectbox('Choisissez la 2nd caractéristique:',df.index, index=1)
@@ -162,10 +142,6 @@ def main():
     col1, col2 = st.beta_columns(2)
     ### Scatter Plot 2D
     with col1:
-        # dictValueCustomer = {
-        #     feature1:valueCustomer1,
-        #     feature2:valueCustomer2
-        # }
         listValueCustomer = [[feature1,valueCustomer1],[feature2,valueCustomer2]]
         fig = utils.plotScatter2D(dataRef, listValueCustomer)
         # st.markdown('## ')
@@ -179,88 +155,7 @@ def main():
         listValueCustomer.append([feature3,dataCustomer.loc[dataCustomer[loanColumn]==user_input, feature3].values[0]])
         fig = utils.plotScatter3D(dataRef, listValueCustomer)
         st.write(fig)
-    
-    
-    
-    ########### Sidebar ##############################
-    # st.sidebar.markdown("# Validation de prêt")
-    # st.sidebar.markdown("Entrez les informations clients\n")
-    # user_input = st.sidebar.select_slider('Quelle est le numéro de prêt?',
-    #                                       options=list(dataCustomer[loanColumn]))
-    st.sidebar.title('Paramètres avancées')
-    st.sidebar.header('Valeurs des 12 variables les plus importantes du client: ')
-    
-    df = utils.getDFLocalFeaturesImportance(model=model,
-                                            X=dataCustomer,
-                                            loanNumber=int(user_input),
-                                            nbFeatures=12)
-    for count, varName in enumerate(df.index):
-        varValue = dataCustomer.loc[dataCustomer[loanColumn]==user_input, varName].values[0]
-        st.sidebar.markdown(f'Variable n°{count+1}:')
-        st.sidebar.markdown(f'- Nom: {varName}')
-        st.sidebar.markdown(f'- Valeur: {varValue}')
-        # st.sidebar.markdown(f'Variable n°{count+1}: {value}')
-        # st.sidebar.markdown(f'Value n°{count+1}: {dataCustomer[dataCustomer[loanColumn]==user_input][value].values[0]}')
-        # st.sidebar.markdown(f'Value n°{count+1}: {dataCustomer.loc[dataCustomer[loanColumn]==user_input, value].values[0]}')
-    # Faire liste des variables globales les plus importantes :
-    # Puis créer des selecteur pour les X variables les plus importantes
-    # Indiquer à chaque fois pour chaque variable, la valeur du client conserné
-    # CODE_GENDER
-    
-
-
-    ### Dist on 1st & 2nd most importante feature
-    
-
-
-
-# A Faire:
-    # Ne conserver ici que les donnée test
-    # Model et Donnée TRAIN à mettre uniquement côté API
-
 
 
 if __name__ == "__main__":
     main()
-
-
-
-# st.set_option('deprecation.showPyplotGlobalUse', False)
-
-
-
-
-# loanColumn = 'SK_ID_CURR'
-    
-# dataRef, dataCustomer, model = utils.loadDataAndModel()
-
-
-# loanNumberMin=dataCustomer['SK_ID_CURR'].min()
-# loanNumberMax=dataCustomer['SK_ID_CURR'].max()
-
-
-
-
-# predExact, predProba = utils.modelPredict(data=dataCustomer,
-#                                           model=model,
-#                                           loanNumber=int(user_input),
-#                                           threshold=0.51)
-
-# if predExact == 0:
-#     predExact = 'Authorisé'
-# else:
-#     predExact = "Refusé"
-
-# idxCustomer = utils.getTheIDX(dataCustomer,user_input,columnName='SK_ID_CURR')
-# genderCustomer = utils.getGender(dataCustomer, idxCustomer)
-
-
-# '# Dashboard'
-# '## Sous titre'
-
-# 'Numéro de Prêt: ', user_input
-# 'Numéro de Client: ', idxCustomer
-# 'Authorisation du prêt: ', predExact
-# 'Résultat proba: ', round(float(predProba),3)
-# 'Genre du client: ',genderCustomer
-# utils.showCustomerResult(model, dataRef, 0.51, idxCustomer)

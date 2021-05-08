@@ -23,8 +23,8 @@ loanColumn = 'SK_ID_CURR'
 target = 'TARGET'
 colW=350
 colH=500
-url = "https://ja-p7-api.herokuapp.com/"
-# url = "http://127.0.0.1:5000/"
+# url = "https://ja-p7-api.herokuapp.com/"
+url = "http://127.0.0.1:5000/"
 
 ### For API Asking ###
 def convToB64(data):
@@ -38,6 +38,7 @@ def askAPI(apiName, url=url, params=None):
     resp = requests.post(url=url,params=params).text
     return restoreFromB64Str(resp)
 
+@st.cache(suppress_st_warning=True)
 def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url, modelName='lightgbm'):
     # Reccupération de l'index
     idx = getTheIDX(data,loanNumber,columnName)
@@ -59,8 +60,6 @@ def loadData():
     return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
         pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb'))
 
-
-
 @st.cache(suppress_st_warning=True)
 def loadModel(modelName='model'):
     return askAPI(apiName=modelName)
@@ -72,17 +71,11 @@ def loadThreshold():
 ### Get Data ###
 @st.cache(suppress_st_warning=True)
 def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12,inv=False):
-    # X = X.sample(frac=0.01)
     idx = getTheIDX(data=X,columnName=loanColumn,value=loanNumber)
     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
     
     if inv:
         shap_values *= -1
-    
-    # if not inv:
-    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
-    # else:
-    #     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
     
     dfShap = pd.DataFrame(shap_values, columns=X.columns.values)
     serieSignPositive = dfShap.iloc[0,:].apply(lambda col: True if col>=0 else False)
@@ -283,9 +276,6 @@ def plotScatter2D(dataRef, listValCust):
 
 @st.cache(suppress_st_warning=True)
 def plotScatter3D(dataRef, listValCust):
-    # Pour le moment j'effectue ici le sample.
-    # dataRef = dataRef.sample(frac=0.001)
-    
     fig = px.scatter_3d(
         dataRef,
         x=listValCust[0][0],
@@ -294,7 +284,6 @@ def plotScatter3D(dataRef, listValCust):
         color=target
         )
     fig.update_layout(showlegend=False)
-    
     
     fig.add_scatter3d(
         x=[listValCust[0][1]],
