@@ -33,24 +33,59 @@ def convToB64(data):
 def restoreFromB64Str(data_b64_str):
     return pickle.loads(base64.b64decode(data_b64_str.encode()))
 
-def askAPI(apiName, url=url, params=None):
+def askAPI(apiName, url=url, params=None, restoreFromB64=False):
     url=url+str(apiName)
     resp = requests.post(url=url,params=params).text
     return restoreFromB64Str(resp)
 
+
+def splitAndAskAPI(data):
+	# Split et envoi des données à l'API
+    print('splitAndAskAPI')
+    print(askAPI(apiName='initSplit'))
+    if askAPI(apiName='initSplit'):
+        print('OK')
+        for j,i in enumerate(splitString(data, 5)):
+	#         time.sleep(1)
+	        print(f'len du split n°{j}: {len(i)}')
+	        if askAPI(apiName='merge', params=dict(txtSplit=i, numSplit=j)):
+	            print('OK... pour le moment...')
+	        else:
+	            print('Aie Aie Aie...')
+        resp = askAPI(apiName='endSplit')
+        print(resp)
+        return resp
+
+# @st.cache(suppress_st_warning=True)
+# def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url, modelName='lightgbm'):
+#     # Reccupération de l'index
+#     idx = getTheIDX(data,loanNumber,columnName)
+#     # Création du df d'une seule ligne contenant les infos du client
+#     data = data.iloc[[idx]]
+    
+#     # Création des données à passer en arguments au format dictionnaire
+#     params = dict(data_b64_str=convToB64(data))
+    
+#     # Interrogation de l'API et récupération des données au format dictionnaire
+#     dictResp = askAPI(apiName=modelName ,url=url, params=params)
+    
+#     return dictResp['predExact'], dictResp['predProba']
+
 @st.cache(suppress_st_warning=True)
 def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url, modelName='lightgbm'):
+    print('apiModelPrediction')
+	# préparation des informations à envoyer
     # Reccupération de l'index
     idx = getTheIDX(data,loanNumber,columnName)
-    
-    # Création du df d'une seule ligne contenant les infos du client
-    data = data.iloc[[idx]]
-    
-    # Création des données à passer en arguments au format dictionnaire
-    params = dict(data_b64_str=convToB64(data))
-    
-    # Interrogation de l'API et récupération des données au format dictionnaire
-    dictResp = askAPI(apiName=modelName ,url=url, params=params)
+    print(f'idx={idx}')
+	# Création d'un pandas Series contenant les infos du client
+    dataOneCustomer = data.iloc[[idx]].values
+	# Encodage des données en base64 puis au format String UTF-8
+    dataOneCustomerB64Txt = convToB64(dataOneCustomer)
+	# Les données sont envoyés en 5 parties pour contourner une limitation de volume de donnée sur Heroku
+    dictResp = splitAndAskAPI(data=dataOneCustomerB64Txt)
+
+    # dictResp = splitAndAskAPI(data=convToB64(data.iloc[[idx]].values))
     
     return dictResp['predExact'], dictResp['predProba']
 
@@ -107,6 +142,11 @@ def getGender(data, idx):
         return 'Female'
     else:
         return 'Male'
+
+def splitString(t, nbSplit):
+    import textwrap
+    from math import ceil
+    return textwrap.wrap(t, ceil(len(t)/nbSplit))
 
 @st.cache(suppress_st_warning=True)
 def get_df_global_shap_importance(model, X):

@@ -50,12 +50,12 @@ def main():
     #     user_input = st.text_input('',value=list(dataCustomer[loanColumn])[1])
             
 
-    ### Old Gestion d'Erreur
-    nearest_value = min(list(dataCustomer[loanColumn]), key=lambda x:abs(x-int(user_input)))
-    if not user_input == nearest_value:
-        txt_error = 'Attention, numéro de client invalide.\n\nNuméro de client le plus proche: '+nearest_value
-        st.warning(txt_error)
-        user_input = nearest_value
+    # ### Old Gestion d'Erreur
+    # nearest_value = min(list(dataCustomer[loanColumn]), key=lambda x:abs(x-int(user_input)))
+    # if not user_input == nearest_value:
+    #     txt_error = 'Attention, numéro de client invalide.\n\nNuméro de client le plus proche: '+nearest_value
+    #     st.warning(txt_error)
+    #     user_input = nearest_value
         
     ########### Model Prediction ##############################
     # predExact, predProba = utils.modelPredict(data=dataCustomer,
@@ -63,10 +63,10 @@ def main():
     #                                           loanNumber=int(user_input),
     #                                           threshold=threshold)
 
-    ########### Model Prediction API ##########################    
+    ########### Model Prediction API ##########################
     predExact, predProba = utils.apiModelPrediction(data=dataCustomer,
                                                     loanNumber=int(user_input))
-    # Envoyer un df d'une ligne qui doit ressebler à ça: dataCustomer.iloc[[2]]
+    # predExact, predProba = 1,0.5913
     
     ########### Loan Validation ##############################
     st.markdown("# Validation du prêt")
