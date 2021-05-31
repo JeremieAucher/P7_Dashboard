@@ -23,7 +23,6 @@ def main():
     
     ########### Top ##############################
     col1, col2 = st.beta_columns((1,3))
-    # col1.image('img/logo.png', width=150)
     with col1:
         st.image('img/logo.png', width=300)
     with col2:
@@ -38,35 +37,10 @@ def main():
                                         X=dataCustomer,
                                         loanNumber=int(user_input),
                                         nbFeatures=12)
-    
-    # ########### Input ##############################
-    # col1, col2 = st.beta_columns((1,2))
-    # # col1, col2 = st.beta_columns((2))
-    
-    # with col1:
-    #     st.text('')
-    #     st.markdown('## Entrez le numéro de client:')
-    # with col2:
-    #     user_input = st.text_input('',value=list(dataCustomer[loanColumn])[1])
-            
-
-    # ### Old Gestion d'Erreur
-    # nearest_value = min(list(dataCustomer[loanColumn]), key=lambda x:abs(x-int(user_input)))
-    # if not user_input == nearest_value:
-    #     txt_error = 'Attention, numéro de client invalide.\n\nNuméro de client le plus proche: '+nearest_value
-    #     st.warning(txt_error)
-    #     user_input = nearest_value
-        
-    ########### Model Prediction ##############################
-    # predExact, predProba = utils.modelPredict(data=dataCustomer,
-    #                                           model=model,
-    #                                           loanNumber=int(user_input),
-    #                                           threshold=threshold)
 
     ########### Model Prediction API ##########################
     predExact, predProba = utils.apiModelPrediction(data=dataCustomer,
                                                     loanNumber=int(user_input))
-    # predExact, predProba = 1,0.5913
     
     ########### Loan Validation ##############################
     st.markdown("# Validation du prêt")
@@ -83,19 +57,10 @@ def main():
     col1, col15, col2 = st.beta_columns((2,1,2))
     with col1:
         ### Gauge Score
-        # st.markdown("## Score")
-        
-
-        # predExact, predProba = utils.modelPredict(data=dataCustomer,
-        #                                           model=model,
-        #                                           loanNumber=int(user_input),
-        #                                           threshold=threshold)
-        
-        # fig=utils.gauge_chart(predProba[0],threshold)
         fig=utils.gauge_chart(predProba,threshold)
         st.write(fig)
     with col15:
-        # Colonne vide pour centrer les elements
+        # Empty column to center the elements
         st.write("")
     with col2:
         ### Img OK/NOK
@@ -119,7 +84,7 @@ def main():
             )
         st.write(fig)
     
-    #### Analyse Mono & Bi variées
+    #### Mono & Bi analysis
     ### Dist Plot
     col1, col2 = st.beta_columns((2))
     
@@ -141,8 +106,6 @@ def main():
     with col1:
         listValueCustomer = [[feature1,valueCustomer1],[feature2,valueCustomer2]]
         fig = utils.plotScatter2D(dataRef, listValueCustomer)
-        # st.markdown('## ')
-        # st.markdown('## ')
         st.markdown('### ↓ Positionnement du client en fonction des 2 premières caractéristiques selectionnées')
         st.markdown('### &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Positionnement du client en fonction des 3 caractéristiques selectionnées 🡮')
         st.write(fig)
@@ -152,7 +115,6 @@ def main():
         listValueCustomer.append([feature3,dataCustomer.loc[dataCustomer[loanColumn]==user_input, feature3].values[0]])
         fig = utils.plotScatter3D(dataRef, listValueCustomer)
         st.write(fig)
-
 
 if __name__ == "__main__":
     main()

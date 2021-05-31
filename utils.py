@@ -24,23 +24,51 @@ target = 'TARGET'
 colW=350
 colH=500
 url = "https://ja-p7-api.herokuapp.com/"
-# url = "http://127.0.0.1:5000/"
 
 ### For API Asking ###
 def convToB64(data):
+    '''
+    As input: <data> of any kind.
+    The function converts the <data> to base-64 then the resulting string is encoded in UTF-8.
+    Output: The result obtained.
+    '''
     return base64.b64encode(pickle.dumps(data)).decode('utf-8')
 
 def restoreFromB64Str(data_b64_str):
+    '''
+    Input: Data converted to Base-64 and then encoded to UTF-8. 
+          Ideally data from the convToB64 function.
+    The function restores the encoded data to its original format.
+    Output: The restored data
+    '''
     return pickle.loads(base64.b64decode(data_b64_str.encode()))
 
-def askAPI(apiName, url=url, params=None, restoreFromB64=False):
+def askAPI(apiName, url=url, params=None):
+    '''
+    This function allows to query an API.
+    It has been designed to query an API running on a FLASK server.
+    The data received from the API must be in base-64 format encoded in UFT-8.
+    Input:
+        <apiName>: Name of the API to query, this is the name found at the end 
+                   of the URL before the parameter list.
+        <url>: url where the API to query is stored.
+        <params>: At None by default if no parameters to send. 
+                  The parameters sent must be in dictionary format {'Parameter Name': 'Parameter Value'}
+    Output: The response provided by the API, decoded through the restoreFromB64Str function.
+    '''
     url=url+str(apiName)
     resp = requests.post(url=url,params=params).text
     return restoreFromB64Str(resp)
 
 
 def splitAndAskAPI(data):
-	# Split et envoi des données à l'API
+    '''
+    To get around a limitation of the Heroku server when using the free package 
+    it may be necessary to split the data to be sent to the API so that 
+    it can be reconstituted on the server side.
+    To be used, the remote API must be designed to handle this kind of data.
+    '''
+	# Split and send data to the API
     print('splitAndAskAPI')
     print(askAPI(apiName='initSplit'))
     if askAPI(apiName='initSplit'):
@@ -56,56 +84,71 @@ def splitAndAskAPI(data):
         print(resp)
         return resp
 
-# @st.cache(suppress_st_warning=True)
-# def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url, modelName='lightgbm'):
-#     # Reccupération de l'index
-#     idx = getTheIDX(data,loanNumber,columnName)
-#     # Création du df d'une seule ligne contenant les infos du client
-#     data = data.iloc[[idx]]
-    
-#     # Création des données à passer en arguments au format dictionnaire
-#     params = dict(data_b64_str=convToB64(data))
-    
-#     # Interrogation de l'API et récupération des données au format dictionnaire
-#     dictResp = askAPI(apiName=modelName ,url=url, params=params)
-    
-#     return dictResp['predExact'], dictResp['predProba']
-
 @st.cache(suppress_st_warning=True)
-def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url, modelName='lightgbm'):
+def apiModelPrediction(data,loanNumber,columnName='SK_ID_CURR',url=url):
+    '''
+    This function allows you to make a prediction by querying the remote model via an API.
+    The function supports Heroku's limitation on the size of data that can be sent in a POST request.
+    As input: 
+        <data> the data in pandas dataframe format compatible with the model being queried.
+        <loanNumber> the loan number of the client to be queried
+        <columnName> The name of the column containing the loan numbers
+        <url> URL of the API to query'
+    In output: The prediction of the model according to the format (Exact prediction (0 or 1), probabilistic prediction [0;1])
+    '''
     print('apiModelPrediction')
-	# préparation des informations à envoyer
-    # Reccupération de l'index
+    # Preparation of the information to be sent
+    # Recovering the index
     idx = getTheIDX(data,loanNumber,columnName)
     print(f'idx={idx}')
-	# Création d'un pandas Series contenant les infos du client
+	# Creation of a Pandas Series containing the customer's information
     dataOneCustomer = data.iloc[[idx]].values
-	# Encodage des données en base64 puis au format String UTF-8
+	# Data encoding in base64 then in String UTF-8 format
     dataOneCustomerB64Txt = convToB64(dataOneCustomer)
-	# Les données sont envoyés en 5 parties pour contourner une limitation de volume de donnée sur Heroku
+	# The data is sent in 5 parts to bypass a data volume limitation on Heroku
     dictResp = splitAndAskAPI(data=dataOneCustomerB64Txt)
-
-    # dictResp = splitAndAskAPI(data=convToB64(data.iloc[[idx]].values))
     
     return dictResp['predExact'], dictResp['predProba']
 
 ### Load Data and More ###
 @st.cache(suppress_st_warning=True)
 def loadData():
+    '''
+    This function returns the data in pickle format that are contained in the "pickle" folder
+    The data returned are:
+        'dataRef.pkl' which contains the data of the customer base which was used to train 
+        the model and which will be used for the realization of the various graphics of the dashboard.
+        dataCustomer' which contains a list of customers that can be queried to know 
+        if their loan request is granted or not.
+    '''
     return pickle.load(open(os.getcwd()+'/pickle/dataRef.pkl', 'rb')),\
         pickle.load(open(os.getcwd()+'/pickle/dataCustomer.pkl', 'rb'))
 
 @st.cache(suppress_st_warning=True)
 def loadModel(modelName='model'):
+    '''
+    This function queries and returns the model stored on the remote server.
+    '''
     return askAPI(apiName=modelName)
 
 @st.cache(suppress_st_warning=True)
 def loadThreshold():
+    '''
+    This function queries and returns the value 
+    of the threshold (from the LGBMClassifier model) 
+    stored on the remote server.
+    '''
     return askAPI(apiName='threshold')
 
 ### Get Data ###
 @st.cache(suppress_st_warning=True)
 def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12,inv=False):
+    '''
+    This function returns the Pandas dataframe which is used 
+    to make the graph of features importance with the SHAP library.
+    This allows to realize a graph using another graphical library 
+    than the one used by default with SHAP.
+    '''
     idx = getTheIDX(data=X,columnName=loanColumn,value=loanNumber)
     shap_values = shap.TreeExplainer(model).shap_values(X.iloc[[idx]])[0]
     
@@ -131,25 +174,27 @@ def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12,inv=False):
 
 def getTheIDX(data,value,columnName='SK_ID_CURR'):
     '''
-    Retourne l'index correspondant à la 1ère valeur contenue dans value
-    contenue dans la colonne columnName du Dataframe data.
+    Returns the index corresponding to the 1st value contained 
+    in value contained in the column columnName of the Dataframe data.
     ''' 
     return data[data[columnName] == value].index[0]
 
-def getGender(data, idx):
-    gender = data[data.index == idx].iloc[0]['CODE_GENDER']
-    if gender == 0:
-        return 'Female'
-    else:
-        return 'Male'
-
 def splitString(t, nbSplit):
+    '''
+    This function splits a string into <nbSplit> pieces.
+    If possible, all pieces of text have the same number of characters.
+    Returns the split string in List format.
+    '''
     import textwrap
     from math import ceil
     return textwrap.wrap(t, ceil(len(t)/nbSplit))
 
 @st.cache(suppress_st_warning=True)
 def get_df_global_shap_importance(model, X):
+    '''
+    This function returns the Pandas dataframe used to create the global features importance graph.
+    This allows to recreate the graph initially provided by SHAP with another graphical library.
+    '''
     # Explain model predictions using shap library:
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X)[0]
@@ -163,6 +208,10 @@ def get_df_global_shap_importance(model, X):
 
 ### Plot Chart ###
 def gauge_chart(score, threshold):
+    '''
+    Returns a gauge figure with a number of predefined parameters.
+    All you have to do is to give it the <score> as well as the <threshold>.
+    '''
     color="RebeccaPurple"
     if score<threshold:
         color="darkred"
@@ -244,9 +293,10 @@ def gauge_chart(score, threshold):
 @st.cache(suppress_st_warning=True)
 def plotGlobalFeaturesImportance(model, X, nbFeatures=10):
     '''
-    nbFeatures ---> (n_first_element)
+    Returns a figure allowing the display of the global features importance.
+    The calculation is done by the SHAP library and the display of the graph with plotly.
     '''
-    # Suppression de la colonne <target> si elle existe.
+    # Removal of the <target> column if it exists.
     X = X.drop(target, axis=1, errors='ignore')
     
     data = get_df_global_shap_importance(model, X)
@@ -261,6 +311,10 @@ def plotGlobalFeaturesImportance(model, X, nbFeatures=10):
 
 @st.cache(suppress_st_warning=True)
 def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
+    '''
+    Returns a figure allowing the display of the globallocal features importance.
+    The calculation is done by the SHAP library and the display of the graph with plotly.
+    '''
     dfValuesSign = getDFLocalFeaturesImportance(
         model=model,
         X=X,
@@ -285,9 +339,10 @@ def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
 @st.cache(suppress_st_warning=True)
 def plotDistOneFeature(dataRef,feature,valCust):
     '''
-    Retourne une figure distplot basé sur la variable <feature> des données <data>.
-    Affiche deux distribution en fonction de la valeur de la target.
-    Affiche également une barre verticale représentant la valeur du client pour cette variable.
+    Returns a distplot figure based on the <feature> variable of the <data>.
+    Displays two distributions based on the value of the target.
+    The color of the points is realized according to the feature <feature>
+    Also displays a vertical bar representing the client value for this variable.
     '''
     
     x0 = dataRef[dataRef[target]==0][feature]
@@ -295,12 +350,17 @@ def plotDistOneFeature(dataRef,feature,valCust):
     del dataRef
     hist_data = [x0, x1]
     group_labels = ['Refusé', 'Accepté']
-    fig = ff.create_distplot(hist_data, group_labels)
+    fig = ff.create_distplot(hist_data, group_labels, bin_size=.05)
     fig.add_vline(x=valCust, line_width=3, line_dash="dash", line_color="red")
     return fig
 
 @st.cache(suppress_st_warning=True)
 def plotScatter2D(dataRef, listValCust):
+    '''
+    Returns a figure generated by plotly express.
+    The figure is a scatter plot in 2 dimensions representing all the customers.
+    Also will be displayed two red lines (one vertical and the other horizontal' ) whose intersection represents the location of the observed customer.
+    '''
     fig = px.scatter(
         dataRef,
         x=listValCust[0][0],
@@ -316,6 +376,12 @@ def plotScatter2D(dataRef, listValCust):
 
 @st.cache(suppress_st_warning=True)
 def plotScatter3D(dataRef, listValCust):
+    '''
+    Returns a figure generated by plotly express.
+    The figure is a scatter plot in 3 dimensions representing all the customers. 
+    The color of the points is realized according to the feature <feature>
+    The observed customer is represented by a point of a different color than all the others.
+    '''
     fig = px.scatter_3d(
         dataRef,
         x=listValCust[0][0],
