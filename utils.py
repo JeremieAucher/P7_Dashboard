@@ -338,7 +338,7 @@ def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
 
 def adaptTargetValuesAndTitle(data):
     data = data.copy()
-    data[target] = data[target].map({0:'Refusé', 1:'Accepté'})
+    data[target] = data[target].map({0:'Accepté', 1:'Refusé'})
     return data.rename(columns={target:'Demande de prêt:'})
 
 @st.cache(suppress_st_warning=True)
