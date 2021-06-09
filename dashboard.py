@@ -19,7 +19,8 @@ def main():
     loanColumn = 'SK_ID_CURR'
     dataRef, dataCustomer = utils.loadData()
     model = utils.loadModel()
-    threshold = utils.loadThreshold()
+    # threshold = utils.loadThreshold()
+    minScore,maxScore,threshold = utils.loadRatingSystem()
     
     ########### Top ##############################
     col1, col2 = st.beta_columns((1,3))
@@ -57,7 +58,7 @@ def main():
     col1, col15, col2 = st.beta_columns((2,1,2))
     with col1:
         ### Gauge Score
-        fig=utils.gauge_chart(predProba,threshold)
+        fig=utils.gauge_chart(predProba,minScore,maxScore,threshold)
         st.write(fig)
     with col15:
         # Empty column to center the elements

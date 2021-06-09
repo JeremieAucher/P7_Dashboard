@@ -24,6 +24,10 @@ colorLabel='Demande de prêt:'
 colW=350
 colH=500
 url = "https://ja-p7-api.herokuapp.com/"
+minRating=-1
+maxRating=1
+localThreshold=0
+
 
 ### For API Asking ###
 def convToB64(data):
@@ -140,6 +144,17 @@ def loadThreshold():
     '''
     return askAPI(apiName='threshold')
 
+@st.cache(suppress_st_warning=True)
+def loadRatingSystem():
+    '''
+    This function queries and returns the value 
+    of the rating system (from the LGBMClassifier model) 
+    stored on the remote server.
+    As Input: Nothing
+    As output: minimum score, maximum score, theshold
+    '''
+    return askAPI(apiName='ratingSystem')
+
 ### Get Data ###
 @st.cache(suppress_st_warning=True)
 def getDFLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12,inv=False):
@@ -206,14 +221,64 @@ def get_df_global_shap_importance(model, X):
         columns=['feature','importance']
     )
 
+@st.cache(suppress_st_warning=True)
+def convertUpperAndLowerBoundAndThreshoold(value,
+                                           oldMin,oldMax,oldThreshold,
+                                           newMin,newMax,newThreshold):
+    '''
+    Convert a rating with a defined low and high bound into another rating 
+    that can have different low and high bounds.
+    It is possible to define thresholds that define the limit rating of 
+    what could be NOK/OK before and after.
+    For example: 
+    A model returns a score between 0 and 1 with a threshold at 0.8.
+    Below 0.8 the result is NOK, above 0.8 the result is OK.
+    We want to display a score between -1 and 1 with a threshold of 0, 
+    independently of the threshold defined before for readability concerns 
+    if the score would be for example presented to a customer who would 
+    not know this notion of threshold and would prefer, intuitively imagine 
+    a strictly negative score as NOK and a positive score as OK.
+    As input: 
+    - value: the score to convert
+    - oldMin: low limit in the scoring system of the score to convert
+    - oldMax: high limit in the scoring system of the score to convert
+    - oldThreshold: threshold in the rating system of the score to convert
+    - newMin: low limit in the rating system of the rating to be converted
+    - newMax: high limit in the rating system of the converted score
+    - newThreshold: threshold in the rating system of the converted score
+    As output:
+    - the score in the new rating system
+    '''
+    
+    if value < oldThreshold:
+        oldMax=oldThreshold
+        newMax=newThreshold
+    else:
+        oldMin=oldThreshold
+        newMin=newThreshold
+        
+  
+    return ((value-oldMin)*((newMax-newMin)/(oldMax-oldMin)))+newMin
+
 ### Plot Chart ###
-def gauge_chart(score, threshold):
+@st.cache(suppress_st_warning=True)
+def gauge_chart(score, minScore, maxScore, threshold):
     '''
     Returns a gauge figure with a number of predefined parameters.
     All you have to do is to give it the <score> as well as the <threshold>.
     '''
+    
+    convertedScore = convertUpperAndLowerBoundAndThreshoold(value=score,
+                                                            oldMin=minScore,
+                                                            oldMax=maxScore,
+                                                            oldThreshold=threshold,
+                                                            newMin=minRating,
+                                                            newMax=maxRating,
+                                                            newThreshold=localThreshold)
+    
+    
     color="RebeccaPurple"
-    if score<threshold:
+    if convertedScore<localThreshold:
         color="darkred"
     else:
         color="green"
@@ -223,57 +288,57 @@ def gauge_chart(score, threshold):
                 'x': [0, 0.9],
                 'y': [0, 0.9]
                 },
-            value = score,
+            value = convertedScore,
             mode = "gauge+number+delta",
             title = {
                 'text': "Score"
                 },
             gauge = {
                 'axis':{
-                    'range':[None, 1]
+                    'range':[-1, 1]
                     },
                 'bar': {
                     'color': color
                     },
                 'steps' : [
                  {
-                     'range': [0, 0.1],
+                     'range': [-1, -0.8],
                      'color': "#ff0000"
                      },
                  {
-                     'range': [0.1, 0.2],
+                     'range': [-0.8, -0.6],
                      'color': "#ff4d00"
                      },
                  {
-                     'range': [0.2, 0.3],
+                     'range': [-0.6, -0.4],
                      'color': "#ff7400"
                      },
                  {
-                     'range': [0.3, 0.4],
+                     'range': [-0.4, -0.2],
                      'color': "#ff9a00"
                      },
                  {
-                     'range': [0.4, 0.5],
+                     'range': [-0.2, 0],
                      'color': "#ffc100"
                      },
                  {
-                     'range': [0.5, 0.6],
+                     'range': [0, 0.2],
                      'color': "#c5ff89"
                      },                 
                  {
-                     'range': [0.6, 0.7],
+                     'range': [0.2, 0.4],
                      'color': "#b4ff66"
                      },
                  {
-                     'range': [0.7, 0.8],
+                     'range': [0.4, 0.6],
                      'color': "#a3ff42"
                      },
                  {
-                     'range': [0.8, 0.9],
+                     'range': [0.6, 0.8],
                      'color': "#91ff1e"
                      },
                  {
-                     'range': [0.9, 1],
+                     'range': [0.8, 1],
                      'color': "#80f900"
                      }
                  ],
@@ -283,7 +348,7 @@ def gauge_chart(score, threshold):
                      'width': 8
                      },
                  'thickness': 0.75,
-                 'value': score
+                 'value': convertedScore
                  }
              },
             delta = {'reference': 0.5, 'increasing': {'color': "RebeccaPurple"}}
@@ -300,13 +365,16 @@ def plotGlobalFeaturesImportance(model, X, nbFeatures=10):
     X = X.drop(target, axis=1, errors='ignore')
     
     data = get_df_global_shap_importance(model, X)
-    
-    fig = go.Figure()
     y=data.head(nbFeatures)['importance']
     x=data.head(nbFeatures)['feature']
-    fig.add_trace(go.Bar(x=x, y=y,
-                         marker=dict(color=y,
-                                     colorscale='viridis')))
+    
+    fig = go.Figure(
+        data=[go.Bar(x=x, y=y,marker=dict(color=y, colorscale='viridis'))],
+        layout=go.Layout(
+        title=go.layout.Title(text="Importance Globale des Caractéristiques:")
+        )
+    )
+
     return fig
 
 @st.cache(suppress_st_warning=True)
@@ -320,7 +388,7 @@ def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
         X=X,
         loanNumber=loanNumber,
         nbFeatures=nbFeatures,
-        inv=True
+        inv=False
         )
     i = dfValuesSign.index
     fig = px.bar(dfValuesSign,
@@ -330,6 +398,7 @@ def plotLocalFeaturesImportance(model,X,loanNumber,nbFeatures=12):
                  orientation='h',
                  category_orders=dict(index=list(i)))
     fig.update_layout(
+        title="Importance des Caractéristiques du Client:",
         yaxis={'title': None},
         xaxis={'title': None},
         showlegend=False
